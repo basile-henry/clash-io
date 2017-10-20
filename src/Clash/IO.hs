@@ -113,7 +113,7 @@ runSdl window inChan outChan = do
     sdlPump outputs = do
       let (currentO, futureO) = splitAt size outputs
       drawFrame currentO
-      threadDelay 1000000
+      threadDelay 16000
       currentI <- inputFrame <$> getKeyboardState
       (currentI ++) <$> sdlPump futureO
 
