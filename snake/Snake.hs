@@ -49,10 +49,10 @@ data Model =
       -- ^ Current direction
     , food      :: Position
       -- ^ Food position
-    , speed     :: Unsigned 6
+    , speed     :: Unsigned 4
       -- ^ Speed of movement of the snake
       -- Used to reset wait time so high number means slow speed
-    , wait      :: Unsigned 6
+    , wait      :: Unsigned 4
       -- ^ Wait time until next movement
     }
   deriving (Show, Eq)
@@ -67,17 +67,26 @@ topEntity input = view <$> model <*> position <*> snakeMask
     (model, snakeMask)
       = unbundle
       $ regEn (initialModel, repeat $ repeat False) frameStart
-              (update <$> input <*> randomPosition frameStart <*> model)
+              (update <$> cumulatedInput <*> randomPosition frameStart <*> model)
 
     initialModel =
       Model
         (Pos 16 16 :> repeat (Pos 0 0))
         (1 :> repeat 0)
-        Alive Right (Pos 10 5) 20 0
+        Alive Right (Pos 10 5) 12 0
 
     position = pixelPos <$> input
 
     frameStart = (Pos 0 0 ==) <$> position
+
+    cumulatedInput =
+      mux (register True frameStart)
+          input
+          (register (Input False False False False False (Pos 0 0))
+                    (accumulate <$> input <*> cumulatedInput))
+
+    accumulate (Input a b c d e p) (Input f g h i j _) =
+      Input (a || f) (b || g) (c || h) (d || i) (e || j) p
 
 update
   :: (KnownNat (Width * Height))
@@ -185,10 +194,10 @@ randomPosition enable =
     random = regEn 0x1234 enable (lfsrF <$> random)
 
     x :: Signal System (Index (Width - 2))
-    x = unpack . slice d5  d0 <$> random
+    x = toIndex . slice d5  d0 <$> random
 
     y :: Signal System (Index (Height - 2))
-    y = unpack . slice d10 d6 <$> random
+    y = toIndex . slice d10 d6 <$> random
 
     insideWalls a = 1 + resize a
 

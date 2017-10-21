@@ -115,8 +115,8 @@ runSdl window inChan outChan = do
     sdlPump outputs = do
       let (currentO, futureO) = splitAt size outputs
       drawFrame currentO
-      pumpEvents
       threadDelay 16000 -- 60 fps
+      pumpEvents
       keyboardState <- getKeyboardState
       -- Quite on 'Esc'
       unless (keyboardState ScancodeEscape) $ do
