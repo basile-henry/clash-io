@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE Rank2Types          #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
@@ -21,7 +20,7 @@ import           Clash.Prelude
     simulate_lazy, snatToNum)
 import           Control.Concurrent
 import           Control.Concurrent.Chan
-import           Control.Monad           (forM_)
+import           Control.Monad           (forM_, unless)
 import           Data.Word               (Word8)
 import           Foreign.C.Types         (CInt)
 import           SDL
@@ -41,6 +40,7 @@ data Input width height =
     , pixelPos :: Pos width height
       -- ^ Current pixel position
     }
+  deriving (Show, Eq)
 
 data Output =
   Output
@@ -48,12 +48,14 @@ data Output =
     , green :: Word8
     , blue  :: Word8
     }
+  deriving (Show, Eq)
 
 data Pos width height =
   Pos
     { x :: Index width
     , y :: Index height
     }
+  deriving (Show, Eq)
 
 coords
   :: forall w h a
@@ -72,12 +74,12 @@ run
   -> IO ()
 run circuit = do
   initializeAll
-  window <- createWindow "Clash IO" defaultWindow
+  window <- createWindow "Clash IO"
+          $ defaultWindow { windowInitialSize = V2 512 256 }
   getWindowPixelFormat window >>= \case
     RGB888 -> do
       inChan  <- newChan
       outChan <- newChan
-      writeList2Chan inChan (concat $ replicate 10 $ inputFrame $ const False)
       forkIO (runCircuit circuit inChan outChan)
       runSdl window inChan outChan
     _      -> error "Window pixel format unsupported"
@@ -91,7 +93,8 @@ runCircuit
   -> IO ()
 runCircuit circuit inChan outChan = do
   inputs <- getChanContents inChan
-  let outputs = simulate_lazy circuit inputs
+  let inputs' = (inputFrame $ const False) ++ inputs
+      outputs = simulate_lazy circuit inputs'
   mapM_ (writeChan outChan) outputs
 
 runSdl
@@ -103,19 +106,23 @@ runSdl
   -> IO ()
 runSdl window inChan outChan = do
   outputs <- getChanContents outChan
-  inputs  <- sdlPump outputs
-  mapM_ (writeChan inChan) inputs
+  sdlPump outputs
   where
     size :: Int
     size = snatToNum (SNat @w) * snatToNum (SNat @h)
 
-    sdlPump :: [Output] -> IO [Input w h]
+    sdlPump :: [Output] -> IO ()
     sdlPump outputs = do
       let (currentO, futureO) = splitAt size outputs
       drawFrame currentO
-      threadDelay 16000
-      currentI <- inputFrame <$> getKeyboardState
-      (currentI ++) <$> sdlPump futureO
+      pumpEvents
+      threadDelay 16000 -- 60 fps
+      keyboardState <- getKeyboardState
+      -- Quite on 'Esc'
+      unless (keyboardState ScancodeEscape) $ do
+        let inputs = inputFrame keyboardState
+        mapM_ (writeChan inChan) inputs
+        sdlPump futureO
 
     drawFrame :: [Output] -> IO ()
     drawFrame outputs = do
@@ -132,7 +139,7 @@ runSdl window inChan outChan = do
         \(Output {..}, (x, y)) ->
           surfaceFillRect surface
             (Just $ Rectangle (P $ V2 (x * dw) (y * dh)) (V2 dw dh))
-            $ V4 red green blue 0
+            $ V4 red blue green 0
 
 inputFrame
   :: forall w h

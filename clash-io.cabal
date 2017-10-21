@@ -1,10 +1,10 @@
 name:                clash-io
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            Run Clash circuits with a SDL frontend
+description:         Run Clash circuits with a SDL frontend
 homepage:            https://github.com/basile-henry/clash-io#readme
 license:             MIT
--- license-file:        LICENSE
+license-file:        LICENSE
 author:              Basile Henry
 maintainer:          bjm.henry@gmail.com
 copyright:           2017 Basile Henry
@@ -23,15 +23,17 @@ library
                      , text
   default-language:    Haskell2010
 
-executable clash-io-exe
-  hs-source-dirs:      app
+executable snake
+  hs-source-dirs:      snake
   main-is:             Main.hs
   other-modules:       Snake
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , clash-io
                      , clash-prelude
+                     , ghc-typelits-extra
                      , ghc-typelits-knownnat
+                     , ghc-typelits-natnormalise
   default-language:    Haskell2010
 
 source-repository head
