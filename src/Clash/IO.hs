@@ -94,7 +94,7 @@ runCircuit
 runCircuit circuit inChan outChan = do
   inputs <- getChanContents inChan
   let inputs' = (inputFrame $ const False) ++ inputs
-      outputs = simulate_lazy circuit inputs'
+      outputs = simulate circuit inputs'
   mapM_ (writeChan outChan) outputs
 
 runSdl
