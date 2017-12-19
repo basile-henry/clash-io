@@ -18,6 +18,7 @@ library
   exposed-modules:     Clash.IO
   build-depends:       base >= 4.7 && < 5
                      , clash-prelude
+                     , deepseq
                      , sdl2
                      , stm
                      , text

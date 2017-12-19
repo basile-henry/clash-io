@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -16,13 +18,15 @@ module Clash.IO
   ) where
 
 import           Clash.Prelude
-    (Index, KnownNat, SNat (..), Signal, System, SystemClockReset,
-    simulate_lazy, snatToNum)
+    (Index, KnownNat, SNat (..), Signal, System, SystemClockReset, simulate,
+    snatToNum)
 import           Control.Concurrent
 import           Control.Concurrent.Chan
+import           Control.DeepSeq         (NFData)
 import           Control.Monad           (forM_, unless)
 import           Data.Word               (Word8)
 import           Foreign.C.Types         (CInt)
+import           GHC.Generics            (Generic)
 import           SDL
 
 data Input width height =
@@ -40,7 +44,7 @@ data Input width height =
     , pixelPos :: Pos width height
       -- ^ Current pixel position
     }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, NFData)
 
 data Output =
   Output
@@ -48,14 +52,14 @@ data Output =
     , green :: Word8
     , blue  :: Word8
     }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, NFData)
 
 data Pos width height =
   Pos
     { x :: Index width
     , y :: Index height
     }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, NFData)
 
 coords
   :: forall w h a
