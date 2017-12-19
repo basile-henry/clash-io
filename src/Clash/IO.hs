@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE Rank2Types          #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
@@ -81,41 +82,25 @@ run circuit = do
   window <- createWindow "Clash IO"
           $ defaultWindow { windowInitialSize = V2 512 256 }
   getWindowPixelFormat window >>= \case
-    RGB888 -> do
-      inChan  <- newChan
-      outChan <- newChan
-      forkIO (runCircuit circuit inChan outChan)
-      runSdl window inChan outChan
+    RGB888 -> runSdl window circuit
     _      -> error "Window pixel format unsupported"
-
-runCircuit
-  :: forall w h
-   . (KnownNat w, KnownNat h)
-  => (SystemClockReset => Signal System (Input w h)-> Signal System Output)
-  -> Chan (Input w h)
-  -> Chan Output
-  -> IO ()
-runCircuit circuit inChan outChan = do
-  inputs <- getChanContents inChan
-  let inputs' = (inputFrame $ const False) ++ inputs
-      outputs = simulate circuit inputs'
-  mapM_ (writeChan outChan) outputs
 
 runSdl
   :: forall w h
    . (KnownNat w, KnownNat h)
   => Window
-  -> Chan (Input w h)
-  -> Chan Output
+  -> (SystemClockReset => Signal System (Input w h)-> Signal System Output)
   -> IO ()
-runSdl window inChan outChan = do
-  outputs <- getChanContents outChan
-  sdlPump outputs
+runSdl window circuit = mdo
+  let inputs' = (inputFrame $ const False) ++ inputs
+      outputs = simulate circuit inputs'
+  inputs <- sdlPump outputs
+  pure ()
   where
     size :: Int
     size = snatToNum (SNat @w) * snatToNum (SNat @h)
 
-    sdlPump :: [Output] -> IO ()
+    sdlPump :: [Output] -> IO [Input w h]
     sdlPump outputs = do
       let (currentO, futureO) = splitAt size outputs
       drawFrame currentO
@@ -123,10 +108,11 @@ runSdl window inChan outChan = do
       pumpEvents
       keyboardState <- getKeyboardState
       -- Quite on 'Esc'
-      unless (keyboardState ScancodeEscape) $ do
-        let inputs = inputFrame keyboardState
-        mapM_ (writeChan inChan) inputs
-        sdlPump futureO
+      if (keyboardState ScancodeEscape)
+        then do
+          let inputs = inputFrame keyboardState
+          (inputs ++) <$> sdlPump futureO
+        else pure []
 
     drawFrame :: [Output] -> IO ()
     drawFrame outputs = do
