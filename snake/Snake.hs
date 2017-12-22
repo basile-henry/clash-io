@@ -15,11 +15,11 @@ module Snake
   ( topEntity
   ) where
 
-import           Clash.IO
 import           Clash.Prelude       hiding (Either (..))
 import           Clash.Prelude.Moore (medvedevB)
+import           Data.Bool           (bool)
 
-import           Debug.Trace
+import           Clash.IO
 
 type Width    = 64
 type Height   = 32
@@ -54,49 +54,54 @@ data Model =
       -- Used to reset wait time so high number means slow speed
     , wait      :: Unsigned 4
       -- ^ Wait time until next movement
+    , points    :: Unsigned 6
+      -- ^ Number of points (TODO actually use this)
+    , lastInput :: Input Width Height
+      -- ^ A way to accumulate inputs while in the waiting for the next move
     }
   deriving (Show, Eq)
+
+emptyLastInput :: Input Width Height
+emptyLastInput =
+  Input False False False False False (errorX "Unused pixel position")
+
 
 topEntity
   :: SystemClockReset
   => Signal System (Input Width Height)
-  -> Signal System Output
+  -> Signal System (Output 0)
 topEntity input = view <$> model <*> position <*> snakeMask
   where
     -- The model is only updated once per frame
     (model, snakeMask)
       = unbundle
       $ regEn (initialModel, repeat $ repeat False) frameStart
-              (update <$> cumulatedInput <*> randomPosition frameStart <*> model)
+              (update <$> input <*> randomPosition frameStart <*> frameStart <*> model)
 
     initialModel =
       Model
         (Pos 16 16 :> repeat (Pos 0 0))
         (1 :> repeat 0)
-        Alive Right (Pos 10 5) 12 0
+        Alive Right (Pos 10 5) 10 10 0
+        emptyLastInput
+
 
     position = pixelPos <$> input
 
     frameStart = (Pos 0 0 ==) <$> position
 
-    cumulatedInput =
-      mux (register True frameStart)
-          input
-          (register (Input False False False False False (Pos 0 0))
-                    (accumulate <$> input <*> cumulatedInput))
-
-    accumulate (Input a b c d e p) (Input f g h i j _) =
-      Input (a || f) (b || g) (c || h) (d || i) (e || j) p
-
 update
   :: (KnownNat (Width * Height))
   => Input Width Height
   -> Position
+  -> Bool
   -> Model
   -> (Model, Vec Width (Vec Height Bool))
-update Input{..} newFood model@Model{..}
+update input newFood frameStart model@Model{..}
   | state  == Dead  = ( model, snakeMask )
-  | wait   /= 0     = ( model { wait = pred wait }, snakeMask )
+  | wait   /= 0     = ( model { wait = pred wait, lastInput = newInput }
+                      , snakeMask
+                      )
   | newPos == food  = ( model
                           { food      = newFood
                           , snake     = newSnake
@@ -104,6 +109,8 @@ update Input{..} newFood model@Model{..}
                           , direction = newDirection
                           , wait      = newSpeed
                           , speed     = newSpeed
+                            -- Reset the accumulated last input
+                          , lastInput = emptyLastInput
                           }
                       , snakeMask
                       )
@@ -117,6 +124,17 @@ update Input{..} newFood model@Model{..}
                       , snakeMask
                       )
   where
+    waiting = wait /= 0
+
+    -- Same as 'any' but for Vec
+    anyVec = (/= 0) . v2bv . map (bool 0 1)
+
+    -- Accumulate input when waiting
+    newInput@Input{..} = case input of
+      (Input a b c d e _)
+        | anyVec (a :> b :> c :> d :> e :> Nil) -> input
+        | otherwise                             -> lastInput
+
     newSpeed
       | speed > 2 = pred speed
       | otherwise = speed
@@ -159,17 +177,20 @@ view
   :: Model
   -> Position
   -> Vec Width (Vec Height Bool)
-  -> Output
+  -> Output 0
 view Model{..} pos@Pos{..} snakeMask
-  | isBorder pos  = Output   0 255   0
-  | isFood        = Output   0   0 255
+  | isBorder pos  = Output   0 255   0 sevSeg
+  | isFood        = Output   0   0 255 sevSeg
   | isSnake
-  , state == Dead = Output 255   0   0
-  | isSnake       = Output 255 255 255
-  | otherwise     = Output  10  10  10
+  , state == Dead = Output 255   0   0 sevSeg
+  | isSnake       = Output 255 255 255 sevSeg
+  | otherwise     = Output  10  10  10 sevSeg
   where
     isFood  = pos == food
     isSnake = snakeMask !! x !! y
+    sevSeg = Nil
+
+
 
 isBorder
   :: Position

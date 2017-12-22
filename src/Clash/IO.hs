@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -14,52 +12,22 @@ module Clash.IO
   ( Input (..)
   , Output (..)
   , Pos (..)
+  , SevenSegment (..)
   , run
+  , module Clash.IO.Util
   ) where
 
 import           Clash.Prelude
-    (Index, KnownNat, SNat (..), Signal, System, SystemClockReset, simulate,
-    snatToNum)
+  (Bit, Index, KnownNat, SNat (..), Signal, System, SystemClockReset, Vec,
+  simulate, snatToNum)
 import           Control.Concurrent
 import           Control.Concurrent.Chan
-import           Control.DeepSeq         (NFData)
 import           Control.Monad           (forM_, unless)
-import           Data.Word               (Word8)
 import           Foreign.C.Types         (CInt)
-import           GHC.Generics            (Generic)
 import           SDL
 
-data Input width height =
-  Input
-    { up       :: Bool
-      -- ^ Up arrow key pressed
-    , down     :: Bool
-      -- ^ Down arrow key pressed
-    , left     :: Bool
-      -- ^ Left arrow key pressed
-    , right    :: Bool
-      -- ^ Right arrow key pressed
-    , space    :: Bool
-      -- ^ Space key pressed
-    , pixelPos :: Pos width height
-      -- ^ Current pixel position
-    }
-  deriving (Show, Eq, Generic, NFData)
-
-data Output =
-  Output
-    { red   :: Word8
-    , green :: Word8
-    , blue  :: Word8
-    }
-  deriving (Show, Eq, Generic, NFData)
-
-data Pos width height =
-  Pos
-    { x :: Index width
-    , y :: Index height
-    }
-  deriving (Show, Eq, Generic, NFData)
+import           Clash.IO.Types
+import           Clash.IO.Util
 
 coords
   :: forall w h a
@@ -73,8 +41,8 @@ coords SNat SNat = do
   return (x, y)
 
 run
-  :: (KnownNat w, KnownNat h)
-  => (SystemClockReset => Signal System (Input w h) -> Signal System Output)
+  :: (KnownNat w, KnownNat h, KnownNat n)
+  => (SystemClockReset => Signal System (Input w h) -> Signal System (Output n))
   -> IO ()
 run circuit = do
   initializeAll
@@ -89,11 +57,11 @@ run circuit = do
     _      -> error "Window pixel format unsupported"
 
 runCircuit
-  :: forall w h
-   . (KnownNat w, KnownNat h)
-  => (SystemClockReset => Signal System (Input w h)-> Signal System Output)
+  :: forall w h n
+   . (KnownNat w, KnownNat h, KnownNat n)
+  => (SystemClockReset => Signal System (Input w h)-> Signal System (Output n))
   -> Chan (Input w h)
-  -> Chan Output
+  -> Chan (Output n)
   -> IO ()
 runCircuit circuit inChan outChan = do
   inputs <- getChanContents inChan
@@ -102,11 +70,11 @@ runCircuit circuit inChan outChan = do
   mapM_ (writeChan outChan) outputs
 
 runSdl
-  :: forall w h
-   . (KnownNat w, KnownNat h)
+  :: forall w h n
+   . (KnownNat w, KnownNat h, KnownNat n)
   => Window
   -> Chan (Input w h)
-  -> Chan Output
+  -> Chan (Output n)
   -> IO ()
 runSdl window inChan outChan = do
   outputs <- getChanContents outChan
@@ -115,7 +83,7 @@ runSdl window inChan outChan = do
     size :: Int
     size = snatToNum (SNat @w) * snatToNum (SNat @h)
 
-    sdlPump :: [Output] -> IO ()
+    sdlPump :: [Output n] -> IO ()
     sdlPump outputs = do
       let (currentO, futureO) = splitAt size outputs
       drawFrame currentO
@@ -128,7 +96,7 @@ runSdl window inChan outChan = do
         mapM_ (writeChan inChan) inputs
         sdlPump futureO
 
-    drawFrame :: [Output] -> IO ()
+    drawFrame :: [Output n] -> IO ()
     drawFrame outputs = do
       V2 w h <- get $ windowSize window
       let dw = div w $ snatToNum $ SNat @w
@@ -137,7 +105,7 @@ runSdl window inChan outChan = do
       updatePixels (dw, dh) outputs surface
       updateWindowSurface window
 
-    updatePixels :: (CInt, CInt) -> [Output] -> Surface -> IO ()
+    updatePixels :: (CInt, CInt) -> [Output n] -> Surface -> IO ()
     updatePixels (dw, dh) outputs surface = do
       forM_ (zip outputs $ coords (SNat @w) (SNat @h)) $
         \(Output {..}, (x, y)) ->
