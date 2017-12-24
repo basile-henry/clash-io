@@ -8,11 +8,10 @@ module Clash.IO.Types
   , Output (..)
   , Pos (..)
   , SevenSegment (..)
+  , sevenSegmentsHex
   ) where
 
-import           Clash.Prelude
-  (Bit, Index, KnownNat, SNat (..), Signal, System, SystemClockReset, Unsigned,
-  Vec, snatToNum)
+import           Clash.Prelude   (Bit, Index, Unsigned, Vec)
 import           Control.DeepSeq (NFData)
 import           Data.Word       (Word8)
 import           GHC.Generics    (Generic)

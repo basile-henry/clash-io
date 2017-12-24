@@ -11,13 +11,14 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
+
 module Snake
   ( topEntity
   ) where
 
-import           Clash.Prelude       hiding (Either (..))
-import           Clash.Prelude.Moore (medvedevB)
-import           Data.Bool           (bool)
+import           Clash.Prelude hiding (Either (..))
+import           Data.Bool     (bool)
 
 import           Clash.IO
 
@@ -76,7 +77,7 @@ topEntity input = view <$> model <*> position <*> snakeMask
     (model, snakeMask)
       = unbundle
       $ regEn (initialModel, repeat $ repeat False) frameStart
-              (update <$> input <*> randomPosition frameStart <*> frameStart <*> model)
+              (update <$> input <*> randomPosition frameStart <*> model)
 
     initialModel =
       Model
@@ -94,10 +95,9 @@ update
   :: (KnownNat (Width * Height))
   => Input Width Height
   -> Position
-  -> Bool
   -> Model
   -> (Model, Vec Width (Vec Height Bool))
-update input newFood frameStart model@Model{..}
+update input newFood model@Model{..}
   | state  == Dead  = ( model, snakeMask )
   | wait   /= 0     = ( model { wait = pred wait, lastInput = newInput }
                       , snakeMask
@@ -124,8 +124,6 @@ update input newFood frameStart model@Model{..}
                       , snakeMask
                       )
   where
-    waiting = wait /= 0
-
     -- Same as 'any' but for Vec
     anyVec = (/= 0) . v2bv . map (bool 0 1)
 
@@ -152,12 +150,12 @@ update input newFood frameStart model@Model{..}
 
 
     newPos@Pos{..} =
-      let (Pos x y) = head snake
+      let (Pos a b) = head snake
       in case newDirection of
-          Up    -> Pos x       (y - 1)
-          Right -> Pos (x + 1)       y
-          Down  -> Pos x       (y + 1)
-          Left  -> Pos (x - 1)       y
+          Up    -> Pos a       (b - 1)
+          Right -> Pos (a + 1) b
+          Down  -> Pos a       (b + 1)
+          Left  -> Pos (a - 1) b
 
     newSnake = newPos +>> snake
 
@@ -167,11 +165,11 @@ update input newFood frameStart model@Model{..}
     -- when it comes to a hardware implementation
     snakeMask = unconcatI $ foldl step (repeat False) $ zip mask snake
 
-    step x (m, Pos i j)
+    step s (m, Pos i j)
       | m == 1    =
           let (i', j') = (resize $ pack i, resize $ pack j)
-          in replace ((i' `shiftL` 5) + j' :: BitVector 11) True x
-      | otherwise = x
+          in replace ((i' `shiftL` 5) + j' :: BitVector 11) True s
+      | otherwise = s
 
 view
   :: Model
@@ -208,9 +206,9 @@ randomPosition enable =
   where
     -- LFSR from Clash examples
     lfsrF :: BitVector 16 -> BitVector 16
-    lfsrF s = feedback ++# slice d15 d1 s
+    lfsrF s = fb ++# slice d15 d1 s
       where
-        feedback = s!5 `xor` s!3 `xor` s!2 `xor` s!0
+        fb = s!5 `xor` s!3 `xor` s!2 `xor` s!0
 
     random = regEn 0x1234 enable (lfsrF <$> random)
 

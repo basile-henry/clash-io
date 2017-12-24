@@ -1,7 +1,11 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE ExplicitNamespaces #-}
-{-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE ExplicitNamespaces  #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators       #-}
+
+-- TODO remove
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 module Clash.IO.Util
   ( binaryToBCD
@@ -19,12 +23,13 @@ newtype ToBCDPipeline n m =
   ToBCDPipeline { unPipeline :: Vec n (ToBCD n m) }
 
 binaryToBCD
-  :: SystemClockReset
+  :: forall n m
+   . SystemClockReset
   => Signal System (Unsigned n)
   -> Signal System (Vec m (Unsigned 4))
-binaryToBCD = mealy initialState update
+binaryToBCD = mealy update initialState
   where
+    initialState :: ToBCDPipeline n m
     initialState = undefined
+
     update = undefined
-
-

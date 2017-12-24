@@ -18,23 +18,21 @@ module Clash.IO
   ) where
 
 import           Clash.Prelude
-  (Bit, Index, KnownNat, SNat (..), Signal, System, SystemClockReset, Vec,
-  simulate, snatToNum)
+  (KnownNat, SNat (..), Signal, System, SystemClockReset, simulate, snatToNum)
 import           Control.Concurrent
-import           Control.Concurrent.Chan
-import           Control.Monad           (forM_, unless)
-import           Foreign.C.Types         (CInt)
+import           Control.Monad      (forM_, unless)
+import           Foreign.C.Types    (CInt)
 import           SDL
 
 import           Clash.IO.Types
 import           Clash.IO.Util
 
 coords
-  :: forall w h a
-   . (Num a, Enum a)
+  :: forall w h a b
+   . (Num a, Enum a, Num b, Enum b)
   => SNat w
   -> SNat h
-  -> [(a, a)]
+  -> [(a, b)]
 coords SNat SNat = do
   x <- [0..(snatToNum $ SNat @w) - 1]
   y <- [0..(snatToNum $ SNat @h) - 1]
@@ -119,9 +117,8 @@ inputFrame
   => (Scancode -> Bool)
   -> [Input w h]
 inputFrame pressed =
-  map (\(x, y) -> Input up down left right space
-                $ Pos (fromIntegral x) (fromIntegral y))
-      $ coords (SNat @w) (SNat @h)
+  map (Input up down left right space . uncurry Pos)
+      (coords (SNat @w) (SNat @h))
   where
     up    = pressed ScancodeUp
     down  = pressed ScancodeDown
