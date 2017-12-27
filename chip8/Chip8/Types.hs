@@ -13,13 +13,18 @@
 module Chip8.Types where
 
 import           Clash.Prelude
+import           Clash.IO
 
 pattern (:%:)
-  :: (KnownNat n1, KnownNat n2)
-  => BitVector n1 -> BitVector n2 -> BitVector (n1 + n2)
+  :: (KnownNat n, KnownNat m)
+  => BitVector n -> BitVector m -> BitVector (n + m)
 pattern a :%: b <- (split -> (a, b))
   where a :%: b = a ++# b
 infixl 6 :%:
+
+type Width = 64
+type Height = 32
+type Position = Pos Width Height
 
 newtype Addr =
   Addr { unAddr :: BitVector 12 } deriving (Eq, Show)
@@ -173,3 +178,5 @@ instance BitPack Instr where
       (0xF :%: vx :%: (b -> 0x33))             -> LDBCD (Reg vx)
       (0xF :%: vx :%: (b -> 0x55))             -> LDIV (Reg vx)
       (0xF :%: vx :%: (b -> 0x65))             -> LDVI (Reg vx)
+      _                                        ->
+        errorX "BitPack instance for Instr: unhandled case"

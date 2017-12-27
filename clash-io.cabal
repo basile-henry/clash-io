@@ -44,6 +44,8 @@ executable chip8
   hs-source-dirs:      chip8
   main-is:             Main.hs
   other-modules:       Chip8
+                       Chip8.CPU
+                       Chip8.Display
                        Chip8.Types
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base

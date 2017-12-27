@@ -9,11 +9,10 @@ module Chip8
 import           Clash.IO
 import           Clash.Prelude
 
-type Width  = 64
-type Height = 32
+import           Chip8.Types
 
 topEntity
   :: SystemClockReset
-  => Signal System (Input Width Height)
-  -> Signal System (Output 0)
+  => Signal System (Keyboard, VGAInput Width Height)
+  -> Signal System (VGAOutput 1)
 topEntity = undefined
