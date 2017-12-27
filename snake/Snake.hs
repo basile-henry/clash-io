@@ -40,66 +40,63 @@ data Direction
 
 data Model =
   Model
-    { snake     :: Vec 100 Position
+    { snake        :: Vec 100 Position
       -- ^ Where the snake is located
-    , mask      :: Vec 100 Bit
+    , mask         :: Vec 100 Bit
       -- ^ Size of the snake
-    , state     :: State
+    , state        :: State
       -- ^ Game state
-    , direction :: Direction
+    , direction    :: Direction
       -- ^ Current direction
-    , food      :: Position
+    , food         :: Position
       -- ^ Food position
-    , speed     :: Unsigned 4
+    , speed        :: Unsigned 4
       -- ^ Speed of movement of the snake
       -- Used to reset wait time so high number means slow speed
-    , wait      :: Unsigned 4
+    , wait         :: Unsigned 4
       -- ^ Wait time until next movement
-    , points    :: Unsigned 6
+    , points       :: Unsigned 6
       -- ^ Number of points (TODO actually use this)
-    , lastInput :: Input Width Height
+    , lastKeyboard :: Keyboard
       -- ^ A way to accumulate inputs while in the waiting for the next move
     }
   deriving (Show, Eq)
 
-emptyLastInput :: Input Width Height
-emptyLastInput =
-  Input False False False False False (errorX "Unused pixel position")
-
+initialModel :: Model
+initialModel =
+  Model
+    (Pos 16 16 :> repeat (Pos 0 0))
+    (1 :> repeat 0)
+    Alive Right (Pos 10 5) 10 10 0
+    defaultKeyboard
 
 topEntity
   :: SystemClockReset
-  => Signal System (Input Width Height)
-  -> Signal System (Output 0)
+  => Signal System (Keyboard, VGAInput Width Height)
+  -> Signal System (VGAOutput 1)
 topEntity input = view <$> model <*> position <*> snakeMask
   where
+    (keyboard, vga) = unbundle input
     -- The model is only updated once per frame
     (model, snakeMask)
       = unbundle
       $ regEn (initialModel, repeat $ repeat False) frameStart
-              (update <$> input <*> randomPosition frameStart <*> model)
+              (update <$> keyboard <*> randomPosition frameStart <*> model)
 
-    initialModel =
-      Model
-        (Pos 16 16 :> repeat (Pos 0 0))
-        (1 :> repeat 0)
-        Alive Right (Pos 10 5) 10 10 0
-        emptyLastInput
+    position = pixelPos <$> vga
 
-
-    position = pixelPos <$> input
-
-    frameStart = (Pos 0 0 ==) <$> position
+    frameStart = (Just (Pos 0 0) ==) <$> position
 
 update
   :: (KnownNat (Width * Height))
-  => Input Width Height
+  => Keyboard
   -> Position
   -> Model
   -> (Model, Vec Width (Vec Height Bool))
-update input newFood model@Model{..}
+update inKeyboard newFood model@Model{..}
+  | keyR kb         = ( initialModel, repeat $ repeat False )
   | state  == Dead  = ( model, snakeMask )
-  | wait   /= 0     = ( model { wait = pred wait, lastInput = newInput }
+  | wait   /= 0     = ( model { wait = pred wait, lastKeyboard = kb }
                       , snakeMask
                       )
   | newPos == food  = ( model
@@ -110,41 +107,49 @@ update input newFood model@Model{..}
                           , wait      = newSpeed
                           , speed     = newSpeed
                             -- Reset the accumulated last input
-                          , lastInput = emptyLastInput
+                          , lastKeyboard = defaultKeyboard
                           }
                       , snakeMask
                       )
   | isBorder newPos = ( model { state = Dead }, snakeMask )
   | touchingItself  = ( model { state = Dead }, snakeMask )
   | otherwise       = ( model
-                        { snake     = newSnake
-                        , direction = newDirection
-                        , wait      = speed
-                        }
+                          { snake     = newSnake
+                          , direction = newDirection
+                          , wait      = speed
+                            -- Reset the accumulated last input
+                          , lastKeyboard = defaultKeyboard
+                          }
                       , snakeMask
                       )
   where
     -- Same as 'any' but for Vec
     anyVec = (/= 0) . v2bv . map (bool 0 1)
 
-    -- Accumulate input when waiting
-    newInput@Input{..} = case input of
-      (Input a b c d e _)
-        | anyVec (a :> b :> c :> d :> e :> Nil) -> input
-        | otherwise                             -> lastInput
+    -- Accumulate keyboard input when waiting
+    kb
+      | anyVec
+          ( keyUp    inKeyboard
+         :> keyDown  inKeyboard
+         :> keyLeft  inKeyboard
+         :> keyRight inKeyboard
+         :> keyR     inKeyboard
+         :> Nil
+          )       = inKeyboard
+      | otherwise = lastKeyboard
 
     newSpeed
-      | speed > 2 = pred speed
+      | speed > 1 = pred speed
       | otherwise = speed
 
     newDirection
-      | up
+      | keyUp kb
       , direction /= Down  = Up
-      | right
+      | keyRight kb
       , direction /= Left  = Right
-      | down
+      | keyDown kb
       , direction /= Up    = Down
-      | left
+      | keyLeft kb
       , direction /= Right = Left
       | otherwise          = direction
 
@@ -173,27 +178,25 @@ update input newFood model@Model{..}
 
 view
   :: Model
-  -> Position
+  -> Maybe Position
   -> Vec Width (Vec Height Bool)
-  -> Output 0
-view Model{..} pos@Pos{..} snakeMask
-  | isBorder pos  = Output   0 255   0 sevSeg
-  | isFood        = Output   0   0 255 sevSeg
+  -> VGAOutput 1
+view _ Nothing _ = VGAOutput 0 0 0
+view Model{..} (Just pos@Pos{..}) snakeMask
+  | isBorder pos  = VGAOutput 0 1 0
+  | isFood        = VGAOutput 0 0 1
   | isSnake
-  , state == Dead = Output 255   0   0 sevSeg
-  | isSnake       = Output 255 255 255 sevSeg
-  | otherwise     = Output  10  10  10 sevSeg
+  , state == Dead = VGAOutput 1 0 0
+  | isSnake       = VGAOutput 1 1 1
+  | otherwise     = VGAOutput 0 0 0
   where
     isFood  = pos == food
     isSnake = snakeMask !! x !! y
-    sevSeg = Nil
-
-
 
 isBorder
   :: Position
   -> Bool
-isBorder (Pos x y)
+isBorder Pos{..}
   = x == minBound || x == maxBound
  || y == minBound || y == maxBound
 

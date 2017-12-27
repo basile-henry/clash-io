@@ -1,7 +1,7 @@
 module Main where
 
-import           Clash.IO (run)
+import           Clash.IO (runVGA)
 import           Snake    (topEntity)
 
 main :: IO ()
-main = run topEntity
+main = runVGA topEntity

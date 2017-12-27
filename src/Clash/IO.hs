@@ -9,11 +9,8 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Clash.IO
-  ( Input (..)
-  , Output (..)
-  , Pos (..)
-  , SevenSegment (..)
-  , run
+  ( runVGA
+  , module Clash.IO.Types
   , module Clash.IO.Util
   ) where
 
@@ -36,13 +33,15 @@ coords
 coords SNat SNat = do
   x <- [0..(snatToNum $ SNat @w) - 1]
   y <- [0..(snatToNum $ SNat @h) - 1]
-  return (x, y)
+  return (fromInteger x, fromInteger y)
 
-run
+runVGA
   :: (KnownNat w, KnownNat h, KnownNat n)
-  => (SystemClockReset => Signal System (Input w h) -> Signal System (Output n))
+  => ( SystemClockReset
+    => Signal System (Keyboard, VGAInput w h)
+    -> Signal System (VGAOutput n))
   -> IO ()
-run circuit = do
+runVGA circuit = do
   initializeAll
   window <- createWindow "Clash IO"
           $ defaultWindow { windowInitialSize = V2 512 256 }
@@ -50,38 +49,40 @@ run circuit = do
     RGB888 -> do
       inChan  <- newChan
       outChan <- newChan
-      forkIO (runCircuit circuit inChan outChan)
-      runSdl window inChan outChan
+      _ <- forkIO (runVGACircuit circuit inChan outChan)
+      runVGASdl window inChan outChan
     _      -> error "Window pixel format unsupported"
 
-runCircuit
+runVGACircuit
   :: forall w h n
    . (KnownNat w, KnownNat h, KnownNat n)
-  => (SystemClockReset => Signal System (Input w h)-> Signal System (Output n))
-  -> Chan (Input w h)
-  -> Chan (Output n)
+  => ( SystemClockReset
+    => Signal System (Keyboard, VGAInput w h)
+    -> Signal System (VGAOutput n))
+  -> Chan (Keyboard, VGAInput w h)
+  -> Chan (VGAOutput n)
   -> IO ()
-runCircuit circuit inChan outChan = do
+runVGACircuit circuit inChan outChan = do
   inputs <- getChanContents inChan
   let inputs' = (inputFrame $ const False) ++ inputs
       outputs = simulate circuit inputs'
   mapM_ (writeChan outChan) outputs
 
-runSdl
+runVGASdl
   :: forall w h n
    . (KnownNat w, KnownNat h, KnownNat n)
   => Window
-  -> Chan (Input w h)
-  -> Chan (Output n)
+  -> Chan (Keyboard, VGAInput w h)
+  -> Chan (VGAOutput n)
   -> IO ()
-runSdl window inChan outChan = do
+runVGASdl window inChan outChan = do
   outputs <- getChanContents outChan
   sdlPump outputs
   where
     size :: Int
     size = snatToNum (SNat @w) * snatToNum (SNat @h)
 
-    sdlPump :: [Output n] -> IO ()
+    sdlPump :: [VGAOutput n] -> IO ()
     sdlPump outputs = do
       let (currentO, futureO) = splitAt size outputs
       drawFrame currentO
@@ -94,7 +95,7 @@ runSdl window inChan outChan = do
         mapM_ (writeChan inChan) inputs
         sdlPump futureO
 
-    drawFrame :: [Output n] -> IO ()
+    drawFrame :: [VGAOutput n] -> IO ()
     drawFrame outputs = do
       V2 w h <- get $ windowSize window
       let dw = div w $ snatToNum $ SNat @w
@@ -103,25 +104,71 @@ runSdl window inChan outChan = do
       updatePixels (dw, dh) outputs surface
       updateWindowSurface window
 
-    updatePixels :: (CInt, CInt) -> [Output n] -> Surface -> IO ()
+    updatePixels :: (CInt, CInt) -> [VGAOutput n] -> Surface -> IO ()
     updatePixels (dw, dh) outputs surface = do
       forM_ (zip outputs $ coords (SNat @w) (SNat @h)) $
-        \(Output {..}, (x, y)) ->
-          surfaceFillRect surface
-            (Just $ Rectangle (P $ V2 (x * dw) (y * dh)) (V2 dw dh))
-            $ V4 red blue green 0
+        \(VGAOutput {..}, (x, y)) ->
+          let unsignedToWord8 n = round $
+                (255 * fromIntegral n / fromIntegral (maxBound `asTypeOf` n)
+                  :: Double)
+              r = unsignedToWord8 red
+              g = unsignedToWord8 green
+              b = unsignedToWord8 blue
+          in
+            surfaceFillRect surface
+              (Just $ Rectangle (P $ V2 (x * dw) (y * dh)) (V2 dw dh))
+              $ V4 r b g 0
 
 inputFrame
   :: forall w h
    . (KnownNat w, KnownNat h)
   => (Scancode -> Bool)
-  -> [Input w h]
+  -> [(Keyboard, VGAInput w h)]
 inputFrame pressed =
-  map (Input up down left right space . uncurry Pos)
+  map ((,) keyboard . VGAInput . Just . uncurry Pos)
       (coords (SNat @w) (SNat @h))
   where
-    up    = pressed ScancodeUp
-    down  = pressed ScancodeDown
-    left  = pressed ScancodeLeft
-    right = pressed ScancodeRight
-    space = pressed ScancodeSpace
+    keyboard =
+      Keyboard
+        { keyUp    = pressed ScancodeUp
+        , keyDown  = pressed ScancodeDown
+        , keyLeft  = pressed ScancodeLeft
+        , keyRight = pressed ScancodeRight
+        , keySpace = pressed ScancodeSpace
+        , keyA     = pressed ScancodeA
+        , keyB     = pressed ScancodeB
+        , keyC     = pressed ScancodeC
+        , keyD     = pressed ScancodeD
+        , keyE     = pressed ScancodeE
+        , keyF     = pressed ScancodeF
+        , keyG     = pressed ScancodeG
+        , keyH     = pressed ScancodeH
+        , keyI     = pressed ScancodeI
+        , keyJ     = pressed ScancodeJ
+        , keyK     = pressed ScancodeK
+        , keyL     = pressed ScancodeL
+        , keyM     = pressed ScancodeM
+        , keyN     = pressed ScancodeN
+        , keyO     = pressed ScancodeO
+        , keyP     = pressed ScancodeP
+        , keyQ     = pressed ScancodeQ
+        , keyR     = pressed ScancodeR
+        , keyS     = pressed ScancodeS
+        , keyT     = pressed ScancodeT
+        , keyU     = pressed ScancodeU
+        , keyV     = pressed ScancodeV
+        , keyW     = pressed ScancodeW
+        , keyX     = pressed ScancodeX
+        , keyY     = pressed ScancodeY
+        , keyZ     = pressed ScancodeZ
+        , key0     = pressed Scancode0
+        , key1     = pressed Scancode1
+        , key2     = pressed Scancode2
+        , key3     = pressed Scancode3
+        , key4     = pressed Scancode4
+        , key5     = pressed Scancode5
+        , key6     = pressed Scancode6
+        , key7     = pressed Scancode7
+        , key8     = pressed Scancode8
+        , key9     = pressed Scancode9
+        }
