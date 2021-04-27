@@ -1,6 +1,4 @@
 resolver: lts-10.0
-packages:
-- .
 nix:
   packages:
   - pkgconfig
