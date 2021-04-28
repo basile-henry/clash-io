@@ -15,7 +15,8 @@ module Clash.IO
   ) where
 
 import           Clash.Prelude
-  (KnownNat, SNat (..), Signal, System, SystemClockReset, simulate, snatToNum)
+  (KnownNat, SNat (..), Signal, System, SystemClockResetEnable, simulate,
+  snatToNum)
 import           Control.Concurrent
 import           Control.Monad      (forM_, unless)
 import           Foreign.C.Types    (CInt)
@@ -37,7 +38,7 @@ coords SNat SNat = do
 
 runVGA
   :: (KnownNat w, KnownNat h, KnownNat n)
-  => ( SystemClockReset
+  => ( SystemClockResetEnable
     => Signal System (Keyboard, VGAInput w h)
     -> Signal System (VGAOutput n))
   -> IO ()
@@ -56,7 +57,7 @@ runVGA circuit = do
 runVGACircuit
   :: forall w h n
    . (KnownNat w, KnownNat h, KnownNat n)
-  => ( SystemClockReset
+  => ( SystemClockResetEnable
     => Signal System (Keyboard, VGAInput w h)
     -> Signal System (VGAOutput n))
   -> Chan (Keyboard, VGAInput w h)

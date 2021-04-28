@@ -13,24 +13,23 @@ module Clash.IO.Types
   , hexToSevenSegments
   ) where
 
-import           Clash.Prelude   (Bit, Index, Unsigned)
-import           Control.DeepSeq (NFData)
+import           Clash.Prelude   (Bit, Index, Unsigned, NFDataX)
 import           GHC.Generics    (Generic)
 
 data Pos width height = Pos
   { x :: Index width
   , y :: Index height
-  } deriving (Show, Eq, Generic, NFData)
+  } deriving (Show, Eq, Generic, NFDataX)
 
 newtype VGAInput width height = VGAInput
   { pixelPos :: Maybe (Pos width height)
-  } deriving (Show, Eq, Generic, NFData)
+  } deriving (Show, Eq, Generic, NFDataX)
 
 data VGAOutput n = VGAOutput
   { red           :: Unsigned n
   , green         :: Unsigned n
   , blue          :: Unsigned n
-  } deriving (Show, Eq, Generic, NFData)
+  } deriving (Show, Eq, Generic, NFDataX)
 
 data Keyboard = Keyboard
   { keyUp    :: Bool
@@ -74,7 +73,7 @@ data Keyboard = Keyboard
   , key7     :: Bool
   , key8     :: Bool
   , key9     :: Bool
-  } deriving (Show, Eq, Generic, NFData)
+  } deriving (Show, Eq, Generic, NFDataX)
 
 defaultKeyboard :: Keyboard
 defaultKeyboard =
@@ -92,7 +91,7 @@ data SevenSegment = SevenSegment
   , bottomRight :: Bit
   , bottomLeft  :: Bit
   , bottom      :: Bit
-  } deriving (Show, Eq, Generic, NFData)
+  } deriving (Show, Eq, Generic, NFDataX)
 
 hexToSevenSegments :: Unsigned 4 -> SevenSegment
 hexToSevenSegments = \case

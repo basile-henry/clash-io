@@ -1,11 +1,4 @@
-resolver: lts-10.0
+resolver: lts-17.10
 nix:
   packages:
   - pkgconfig
-extra-deps:
-- ghc-typelits-extra-0.2.3
-- ghc-typelits-knownnat-0.3.1
-- ghc-typelits-natnormalise-0.5.3
-- ghc-tcplugins-extra-0.2.1
-- git: https://github.com/clash-lang/clash-prelude.git
-  commit: db6b8a117f748933e90784e9bfd10f5ef9b29737
