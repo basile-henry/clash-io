@@ -21,6 +21,7 @@ library
   ghc-options:         -Wall
   build-depends:       base >= 4.7 && < 5
                      , clash-prelude
+                     , ghc-typelits-knownnat
                      , deepseq
                      , sdl2
                      , stm
