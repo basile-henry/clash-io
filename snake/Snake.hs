@@ -1,7 +1,10 @@
 {-# LANGUAGE BinaryLiterals      #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE NoStarIsType        #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
@@ -29,14 +32,14 @@ type Position = Pos Width Height
 data State
   = Alive
   | Dead
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, NFDataX)
 
 data Direction
   = Up
   | Right
   | Down
   | Left
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, NFDataX)
 
 data Model =
   Model
@@ -60,7 +63,7 @@ data Model =
     , lastKeyboard :: Keyboard
       -- ^ A way to accumulate inputs while in the waiting for the next move
     }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, NFDataX)
 
 initialModel :: Model
 initialModel =
@@ -71,7 +74,7 @@ initialModel =
     defaultKeyboard
 
 topEntity
-  :: SystemClockReset
+  :: SystemClockResetEnable
   => Signal System (Keyboard, VGAInput Width Height)
   -> Signal System (VGAOutput 1)
 topEntity input = view <$> model <*> position <*> snakeMask
@@ -201,7 +204,7 @@ isBorder Pos{..}
  || y == minBound || y == maxBound
 
 randomPosition
-  :: SystemClockReset
+  :: SystemClockResetEnable
   => Signal System Bool
   -> Signal System Position
 randomPosition enable =
@@ -211,7 +214,8 @@ randomPosition enable =
     lfsrF :: BitVector 16 -> BitVector 16
     lfsrF s = fb ++# slice d15 d1 s
       where
-        fb = s!5 `xor` s!3 `xor` s!2 `xor` s!0
+        fb :: BitVector 1
+        fb = bitCoerce $ s!5 `xor` s!3 `xor` s!2 `xor` s!0
 
     random = regEn 0x1234 enable (lfsrF <$> random)
 
@@ -226,6 +230,7 @@ randomPosition enable =
     toIndex
       :: forall n
        . KnownNat n
+      => 1 <= n
       => BitVector (CLog 2 n)
       -> Index n
     toIndex b

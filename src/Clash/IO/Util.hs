@@ -1,30 +1,32 @@
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE ExplicitNamespaces  #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE NoStarIsType        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
 
--- TODO remove
-{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Clash.IO.Util
   ( binaryToBCD
   ) where
 
 import           Clash.Prelude
-  (type (*), Bit, Signal, System, SystemClockReset, Unsigned, Vec, mealy)
 
 data ToBCD n m = ToBCD
   { state    :: Vec (m * 4) Bit
   , incoming :: Unsigned n
-  }
+  } deriving (Generic, NFDataX)
 
 newtype ToBCDPipeline n m =
   ToBCDPipeline { unPipeline :: Vec n (ToBCD n m) }
+  deriving (Generic, NFDataX)
 
 binaryToBCD
   :: forall n m
-   . SystemClockReset
+   . (KnownNat n, KnownNat m, SystemClockResetEnable)
   => Signal System (Unsigned n)
   -> Signal System (Vec m (Unsigned 4))
 binaryToBCD = mealy update initialState
